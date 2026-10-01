@@ -60,6 +60,22 @@
             margin-bottom: 16px;
         }
 
+        nav {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        nav a {
+            color: #245a45;
+        }
+
+        nav a[aria-current="page"] {
+            color: #202621;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
         button {
             min-height: 40px;
             padding: 8px 12px;
@@ -185,6 +201,10 @@
 <body>
 
     <main>
+        <nav aria-label="Navigation principale">
+            <a href="index.html" aria-current="page">Carte</a>
+            <a href="resultats.html">Résultats</a>
+        </nav>
         <div class="source-controls">
             <div>
                 <label for="results-file">Fichier JSON</label>

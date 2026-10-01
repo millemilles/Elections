@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Résultats par circonscription</title>
+    <style>
+        :root {
+            font-family: system-ui, sans-serif;
+            color: #202621;
+            background: #fff;
+        }
+
+        body {
+            margin: 0;
+        }
+
+        header, main {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: end;
+            gap: 16px;
+            border-bottom: 1px solid #dedfdd;
+        }
+
+        h1, h2, p {
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+        }
+
+        header p {
+            margin-top: 6px;
+            color: #5c625d;
+        }
+
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        nav a {
+            color: #245a45;
+        }
+
+        nav a[aria-current="page"] {
+            color: #202621;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(180px, 1fr));
+            gap: 14px;
+            margin: 24px 0 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        input, select, button {
+            min-height: 40px;
+            box-sizing: border-box;
+            padding: 8px 10px;
+            font: inherit;
+            color: inherit;
+            background: #fff;
+            border: 1px solid #aeb3ae;
+            border-radius: 4px;
+        }
+
+        input, select {
+            width: 100%;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .table-heading {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        #result-count, #status {
+            color: #656b66;
+            font-size: 0.9rem;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border-top: 1px solid #dedfdd;
+        }
+
+        table {
+            width: 100%;
+            min-width: 760px;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e6e8e6;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: #f5f6f5;
+            font-size: 0.85rem;
+        }
+
+        td.numeric, th.numeric {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #empty-state, #error {
+            padding: 24px 12px;
+            color: #656b66;
+        }
+
+        #error {
+            color: #a32222;
+        }
+
+        @media (max-width: 700px) {
+            header, main {
+                padding: 18px;
+            }
+
+            .filters {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>Résultats par circonscription</h1>
+            <p>Candidats et votes</p>
+        </div>
+        <nav aria-label="Navigation principale">
+            <a href="index.html">Carte</a>
+            <a href="resultats.html" aria-current="page">Résultats</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="filters" aria-label="Filtres des résultats">
+            <div>
+                <label for="riding-filter">Circonscription</label>
+                <input type="search" id="riding-filter" placeholder="Nom ou numéro">
+            </div>
+            <div>
+                <label for="candidate-filter">Nom du candidat</label>
+                <input type="search" id="candidate-filter" placeholder="Rechercher un candidat">
+            </div>
+            <div>
+                <label for="party-filter">Parti</label>
+                <select id="party-filter">
+                    <option value="">Tous les partis</option>
+                </select>
+            </div>
+        </section>
+
+        <div class="table-heading">
+            <h2>Résultats</h2>
+            <p id="result-count" aria-live="polite">Chargement…</p>
+        </div>
+        <p id="error" role="alert"></p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">No.</th>
+                        <th scope="col">Circonscription</th>
+                        <th scope="col">Candidat</th>
+                        <th scope="col">Parti</th>
+                        <th scope="col" class="numeric">Votes</th>
+                        <th scope="col" class="numeric">%</th>
+                        <th scope="col" class="numeric">Votes en avance</th>
+                    </tr>
+                </thead>
+                <tbody id="results-body"></tbody>
+            </table>
+        </div>
+        <p id="empty-state" hidden>Aucun résultat ne correspond aux filtres.</p>
+        <p id="status"></p>
+    </main>
+
+    <script>
+        const ridingFilter = document.getElementById('riding-filter');
+        const candidateFilter = document.getElementById('candidate-filter');
+        const partyFilter = document.getElementById('party-filter');
+        const resultsBody = document.getElementById('results-body');
+        const resultCount = document.getElementById('result-count');
+        const emptyState = document.getElementById('empty-state');
+        let candidates = [];
+
+        function normalize(value) {
+            return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr');
+        }
+
+        function renderResults() {
+            const ridingQuery = normalize(ridingFilter.value.trim());
+            const candidateQuery = normalize(candidateFilter.value.trim());
+            const partyId = partyFilter.value;
+            const filtered = candidates.filter(candidate =>
+                (!ridingQuery || normalize(`${candidate.ridingName} ${candidate.ridingNumber}`).includes(ridingQuery)) &&
+                (!candidateQuery || normalize(candidate.candidateName).includes(candidateQuery)) &&
+                (!partyId || String(candidate.partyNumber) === partyId)
+            );
+
+            resultsBody.replaceChildren();
+            filtered.forEach(candidate => {
+                const row = document.createElement('tr');
+                [
+                    candidate.ridingNumber,
+                    candidate.ridingName,
+                    candidate.candidateName,
+                    candidate.partyName,
+                    Number(candidate.votes).toLocaleString('fr-CA'),
+                    `${candidate.voteRate}%`,
+                    Number(candidate.advanceVotes).toLocaleString('fr-CA')
+                ].forEach((value, index) => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value;
+                    if (index >= 4) cell.className = 'numeric';
+                    row.appendChild(cell);
+                });
+                resultsBody.appendChild(row);
+            });
+
+            resultCount.textContent = `${filtered.length.toLocaleString('fr-CA')} sur ${candidates.length.toLocaleString('fr-CA')} candidatures`;
+            emptyState.hidden = filtered.length !== 0;
+        }
+
+        [ridingFilter, candidateFilter, partyFilter].forEach(control => {
+            control.addEventListener('input', renderResults);
+            control.addEventListener('change', renderResults);
+        });
+
+        fetch('resultats.json')
+            .then(response => {
+                if (!response.ok) throw new Error(`Réponse du serveur : ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (!Array.isArray(data.circonscriptions)) throw new Error('Liste de circonscriptions absente du JSON.');
+
+                const parties = new Map((data.statistiques?.partisPolitiques || []).map(party => [
+                    String(party.numeroPartiPolitique),
+                    party.nomPartiPolitique || party.abreviationPartiPolitique
+                ]));
+                candidates = data.circonscriptions.flatMap(riding => (riding.candidats || []).map(candidate => {
+                    const partyNumber = candidate.numeroPartiPolitique;
+                    return {
+                        ridingNumber: riding.numeroCirconscription,
+                        ridingName: riding.nomCirconscription,
+                        candidateName: [candidate.prenom, candidate.nom].filter(Boolean).join(' '),
+                        partyNumber,
+                        partyName: parties.get(String(partyNumber)) || candidate.abreviationPartiPolitique || 'Parti inconnu',
+                        votes: candidate.nbVoteTotal ?? 0,
+                        voteRate: candidate.tauxVote ?? 0,
+                        advanceVotes: candidate.nbVoteAvance ?? 0
+                    };
+                }));
+
+                const partyOptions = [...new Map(candidates.map(candidate => [
+                    String(candidate.partyNumber),
+                    candidate.partyName
+                ])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'fr'));
+                partyOptions.forEach(([number, name]) => {
+                    const option = document.createElement('option');
+                    option.value = number;
+                    option.textContent = name;
+                    partyFilter.appendChild(option);
+                });
+
+                renderResults();
+                document.getElementById('status').textContent = `${data.circonscriptions.length} circonscriptions`;
+            })
+            .catch(error => {
+                resultCount.textContent = 'Résultats indisponibles';
+                document.getElementById('error').textContent = `Impossible de charger les résultats : ${error.message}`;
+            });
+    </script>
+</body>
+</html>
