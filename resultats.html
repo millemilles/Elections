@@ -111,7 +111,7 @@
 
         table {
             width: 100%;
-            min-width: 760px;
+            min-width: 960px;
             border-collapse: collapse;
             text-align: left;
         }
@@ -131,6 +131,27 @@
         td.numeric, th.numeric {
             text-align: right;
             font-variant-numeric: tabular-nums;
+        }
+
+        .vote-bar-cell {
+            width: 200px;
+            min-width: 200px;
+        }
+
+        .vote-bar {
+            display: block;
+            width: 200px;
+            height: 20px;
+        }
+
+        .vote-bar-download {
+            display: block;
+            width: 200px;
+        }
+
+        .vote-bar-download:focus-visible {
+            outline: 2px solid #245a45;
+            outline-offset: 2px;
         }
 
         #empty-state, #error {
@@ -198,6 +219,7 @@
                         <th scope="col">Parti</th>
                         <th scope="col" class="numeric">Votes</th>
                         <th scope="col" class="numeric">%</th>
+                        <th scope="col">Part du vote (PNG)</th>
                         <th scope="col" class="numeric">Votes en avance</th>
                     </tr>
                 </thead>
@@ -215,10 +237,41 @@
         const resultsBody = document.getElementById('results-body');
         const resultCount = document.getElementById('result-count');
         const emptyState = document.getElementById('empty-state');
+        const majorPartyColors = new Map([
+            ['6', '#E1001A'],
+            ['8', '#00A6F9'],
+            ['22', '#1E346E'],
+            ['27', '#90dbfe'],
+            ['40', '#F25402']
+        ]);
+        const voteBarCache = new Map();
+        const voteBarCanvas = document.createElement('canvas');
+        voteBarCanvas.width = 1000;
+        voteBarCanvas.height = 100;
+        const voteBarContext = voteBarCanvas.getContext('2d');
         let candidates = [];
 
         function normalize(value) {
             return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr');
+        }
+
+        function filenamePart(value) {
+            return normalize(value).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'resultat';
+        }
+
+        function voteBarPng(candidate) {
+            const percentage = Math.max(0, Math.min(100, Number(candidate.voteRate) || 0));
+            const width = percentage * 10;
+            const color = majorPartyColors.get(String(candidate.partyNumber)) || '#9B9B9B';
+            const key = `${width}:${color}`;
+            if (voteBarCache.has(key)) return voteBarCache.get(key);
+
+            voteBarContext.clearRect(0, 0, voteBarCanvas.width, voteBarCanvas.height);
+            voteBarContext.fillStyle = color;
+            voteBarContext.fillRect(0, 0, width, voteBarCanvas.height);
+            const png = voteBarCanvas.toDataURL('image/png');
+            voteBarCache.set(key, png);
+            return png;
         }
 
         function renderResults() {
@@ -240,14 +293,36 @@
                     candidate.candidateName,
                     candidate.partyName,
                     Number(candidate.votes).toLocaleString('fr-CA'),
-                    `${candidate.voteRate}%`,
-                    Number(candidate.advanceVotes).toLocaleString('fr-CA')
+                    `${candidate.voteRate}%`
                 ].forEach((value, index) => {
                     const cell = document.createElement('td');
                     cell.textContent = value;
                     if (index >= 4) cell.className = 'numeric';
                     row.appendChild(cell);
                 });
+
+                const barCell = document.createElement('td');
+                barCell.className = 'vote-bar-cell';
+                const downloadLink = document.createElement('a');
+                downloadLink.className = 'vote-bar-download';
+                downloadLink.href = voteBarPng(candidate);
+                downloadLink.download = `votes-${candidate.ridingNumber}-${filenamePart(candidate.ridingName)}-${filenamePart(candidate.candidateName)}.png`;
+                downloadLink.title = 'Télécharger cette image PNG';
+                downloadLink.setAttribute('aria-label', `Télécharger le PNG de ${candidate.candidateName}, ${candidate.ridingName}`);
+                const barImage = document.createElement('img');
+                barImage.className = 'vote-bar';
+                barImage.width = 200;
+                barImage.height = 20;
+                barImage.src = downloadLink.href;
+                barImage.alt = `${candidate.voteRate}% des votes; ${candidate.partyName}`;
+                downloadLink.appendChild(barImage);
+                barCell.appendChild(downloadLink);
+                row.appendChild(barCell);
+
+                const advanceCell = document.createElement('td');
+                advanceCell.className = 'numeric';
+                advanceCell.textContent = Number(candidate.advanceVotes).toLocaleString('fr-CA');
+                row.appendChild(advanceCell);
                 resultsBody.appendChild(row);
             });
 
