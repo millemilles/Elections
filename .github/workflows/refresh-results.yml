@@ -32,7 +32,7 @@ jobs:
 
       - name: Check out repository
         if: steps.activation.outputs.run_refresh == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download and validate results
         if: steps.activation.outputs.run_refresh == 'true'
