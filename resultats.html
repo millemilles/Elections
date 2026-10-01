@@ -141,7 +141,7 @@
         .vote-bar {
             display: block;
             width: 200px;
-            height: 20px;
+            height: 40px;
         }
 
         .vote-bar-download {
@@ -247,7 +247,7 @@
         const voteBarCache = new Map();
         const voteBarCanvas = document.createElement('canvas');
         voteBarCanvas.width = 1000;
-        voteBarCanvas.height = 100;
+        voteBarCanvas.height = 200;
         const voteBarContext = voteBarCanvas.getContext('2d');
         let candidates = [];
 
@@ -312,7 +312,7 @@
                 const barImage = document.createElement('img');
                 barImage.className = 'vote-bar';
                 barImage.width = 200;
-                barImage.height = 20;
+                barImage.height = 40;
                 barImage.src = downloadLink.href;
                 barImage.alt = `${candidate.voteRate}% des votes; ${candidate.partyName}`;
                 downloadLink.appendChild(barImage);
