@@ -16,10 +16,26 @@ jobs:
   refresh-results:
     runs-on: ubuntu-latest
     steps:
+      - name: Check activation time
+        id: activation
+        shell: bash
+        run: |
+          start_time="$(date -u -d '2026-10-06T00:00:00Z' +%s)"
+          current_time="$(date -u +%s)"
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" || "$current_time" -ge "$start_time" ]]; then
+            echo "run_refresh=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_refresh=false" >> "$GITHUB_OUTPUT"
+            echo "Scheduled refreshes begin October 5, 2026 at 8:00 p.m. America/Toronto."
+          fi
+
       - name: Check out repository
+        if: steps.activation.outputs.run_refresh == 'true'
         uses: actions/checkout@v4
 
       - name: Download and validate results
+        if: steps.activation.outputs.run_refresh == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -47,6 +63,7 @@ jobs:
           mv resultats.json.tmp resultats.json
 
       - name: Commit updated results
+        if: steps.activation.outputs.run_refresh == 'true'
         shell: bash
         run: |
           set -euo pipefail
