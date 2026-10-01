@@ -54,30 +54,10 @@
         }
 
         .source-controls {
-            display: grid;
-            grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr);
-            gap: 16px;
-            align-items: end;
-            margin-bottom: 16px;
-        }
-
-        .source-controls form {
-            margin: 0;
-        }
-
-        input[type="url"] {
-            width: 100%;
-            min-width: 0;
-            box-sizing: border-box;
-            padding: 8px 10px;
-            font: inherit;
-            border: 1px solid #aeb3ae;
-            border-radius: 4px;
-        }
-
-        .url-row {
             display: flex;
-            gap: 8px;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
         }
 
         button {
@@ -196,10 +176,6 @@
                 gap: 8px;
             }
 
-            .source-controls {
-                grid-template-columns: 1fr;
-            }
-
             #legend {
                 grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
             }
@@ -214,13 +190,6 @@
                 <label for="results-file">Fichier JSON</label>
                 <input type="file" id="results-file" accept=".json,application/json">
             </div>
-            <form id="url-form">
-                <label for="results-url">Charger depuis une URL</label>
-                <div class="url-row">
-                    <input type="url" id="results-url" required>
-                    <button type="submit">Charger</button>
-                </div>
-            </form>
         </div>
         <p id="last-updated">Source : Élections Québec, Résultats à <time id="last-updated-value">Chargement…</time></p>
         <div class="controls">
@@ -266,7 +235,7 @@
             });
         }
 
-        function initializeMaps(geojson, results, regionCsv, sourceUrl) {
+        function initializeMaps(geojson, results, regionCsv) {
             const regionRows = d3.csvParseRows(regionCsv)
                 .filter(row => row.length >= 4)
                 .map(([name, numero, abbreviation, region]) => ({
@@ -302,19 +271,6 @@
                 if (!file) return;
                 try {
                     applyResults(JSON.parse(await file.text()), file.name);
-                } catch (error) {
-                    showResultError(error);
-                }
-            });
-
-            const urlInput = document.getElementById('results-url');
-            urlInput.value = sourceUrl.trim();
-            document.getElementById('url-form').addEventListener('submit', async event => {
-                event.preventDefault();
-                try {
-                    const response = await fetch(urlInput.value.trim());
-                    if (!response.ok) throw new Error(`Réponse du serveur : ${response.status}`);
-                    applyResults(await response.json(), urlInput.value.trim());
                 } catch (error) {
                     showResultError(error);
                 }
@@ -548,9 +504,8 @@
         Promise.all([
             d3.json('circonscriptions_electorales_sans_eau_2026.json'),
             d3.json('resultats.json'),
-            d3.text('liste_circonscriptions2026_regions.csv'),
-            d3.text('url_data.txt')
-        ]).then(([geojson, results, regionCsv, sourceUrl]) => initializeMaps(geojson, results, regionCsv, sourceUrl))
+            d3.text('liste_circonscriptions2026_regions.csv')
+        ]).then(([geojson, results, regionCsv]) => initializeMaps(geojson, results, regionCsv))
           .catch(error => {
               document.getElementById('error').textContent = `Impossible de charger les données : ${error.message}`;
               document.getElementById('status').textContent = 'Données indisponibles';
