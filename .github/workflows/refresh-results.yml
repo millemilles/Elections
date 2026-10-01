@@ -1,0 +1,62 @@
+name: Refresh election results
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-election-results
+  cancel-in-progress: false
+
+jobs:
+  refresh-results:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download and validate results
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(tr -d '\r\n' < url_data.txt)"
+          if [[ ! "$url" =~ ^https:// ]]; then
+            echo "url_data.txt must contain an HTTPS URL" >&2
+            exit 1
+          fi
+
+          curl --fail --location --retry 3 --retry-delay 5 \
+            --connect-timeout 15 --max-time 120 \
+            --output resultats.json.tmp "$url"
+
+          node -e '
+            const fs = require("node:fs");
+            const data = JSON.parse(fs.readFileSync("resultats.json.tmp", "utf8"));
+            if (!Array.isArray(data.circonscriptions) || data.circonscriptions.length === 0) {
+              throw new Error("The JSON does not contain a non-empty circonscriptions array");
+            }
+            if (!data.circonscriptions.every(riding => riding.numeroCirconscription != null)) {
+              throw new Error("One or more circonscriptions are missing numeroCirconscription");
+            }
+          '
+
+          mv resultats.json.tmp resultats.json
+
+      - name: Commit updated results
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- resultats.json; then
+            echo "Election results have not changed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resultats.json
+          git commit -m "chore: refresh election results"
+          git push

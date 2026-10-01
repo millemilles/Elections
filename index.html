@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Résultats électoraux du Québec</title>
+    <style>
+        :root {
+            font-family: system-ui, sans-serif;
+            color: #202621;
+            background: #fff;
+        }
+
+        body {
+            margin: 0;
+        }
+
+        header, main {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            border-bottom: 1px solid #dedfdd;
+        }
+
+        h1, h2, p {
+            margin: 0;
+        }
+
+        .controls {
+            display: flex;
+            align-items: end;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        select {
+            max-width: 100%;
+            padding: 8px 32px 8px 10px;
+            font: inherit;
+            color: inherit;
+            background: white;
+            border: 1px solid #aeb3ae;
+            border-radius: 4px;
+        }
+
+        .source-controls {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr);
+            gap: 16px;
+            align-items: end;
+            margin-bottom: 16px;
+        }
+
+        .source-controls form {
+            margin: 0;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 8px 10px;
+            font: inherit;
+            border: 1px solid #aeb3ae;
+            border-radius: 4px;
+        }
+
+        .url-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            min-height: 40px;
+            padding: 8px 12px;
+            font: inherit;
+            color: inherit;
+            background: #f5f6f5;
+            border: 1px solid #aeb3ae;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            cursor: wait;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+        }
+
+        header p {
+            margin-top: 6px;
+            color: #5c625d;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 230px;
+            gap: 24px;
+            align-items: start;
+        }
+
+        #map {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .riding {
+            stroke: #fff;
+            stroke-width: 0.7px;
+            stroke-linejoin: round;
+        }
+
+        .riding:hover {
+            stroke: #202621;
+            stroke-width: 2px;
+        }
+
+        aside h2 {
+            margin: 12px 0;
+            font-size: 1rem;
+        }
+
+        #legend {
+            display: grid;
+            gap: 12px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        #legend li {
+            display: grid;
+            grid-template-columns: 16px 1fr;
+            gap: 9px;
+            align-items: start;
+            font-size: 0.9rem;
+            line-height: 1.35;
+        }
+
+        .swatch {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #0002;
+            box-sizing: border-box;
+        }
+
+        .count {
+            display: block;
+            margin-top: 2px;
+            color: #656b66;
+            font-size: 0.8rem;
+        }
+
+        #status {
+            margin-top: 12px;
+            color: #656b66;
+            font-size: 0.85rem;
+        }
+
+        #last-updated {
+            margin: 0 0 18px;
+            color: #656b66;
+            font-size: 0.9rem;
+        }
+
+        #export-status {
+            color: #656b66;
+            font-size: 0.85rem;
+        }
+
+        #error {
+            margin-top: 24px;
+            color: #a32222;
+        }
+
+        @media (max-width: 700px) {
+            header, main {
+                padding: 18px;
+            }
+
+            .content {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .source-controls {
+                grid-template-columns: 1fr;
+            }
+
+            #legend {
+                grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <main>
+        <div class="source-controls">
+            <div>
+                <label for="results-file">Fichier JSON</label>
+                <input type="file" id="results-file" accept=".json,application/json">
+            </div>
+            <form id="url-form">
+                <label for="results-url">Charger depuis une URL</label>
+                <div class="url-row">
+                    <input type="url" id="results-url" required>
+                    <button type="submit">Charger</button>
+                </div>
+            </form>
+        </div>
+        <p id="last-updated">Source : Élections Québec, Résultats à <time id="last-updated-value">Chargement…</time></p>
+        <div class="controls">
+            <div>
+                <label for="region-select">Région</label>
+                <select id="region-select"></select>
+            </div>
+            <button id="export-kml" type="button">Exporter toutes les cartes (.zip)</button>
+            <span id="export-status" role="status"></span>
+        </div>
+        <div class="content">
+            <svg id="map" viewBox="0 0 1050 760" role="img" aria-label="Carte des partis en tête dans les circonscriptions électorales du Québec"></svg>
+            <aside aria-label="Légende">
+                <h2 id="region-heading"></h2>
+                <h2>Parti en tête</h2>
+                <ul id="legend"></ul>
+                <p id="status">Chargement des résultats…</p>
+            </aside>
+        </div>
+        <p id="error" role="alert"></p>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script>
+        const parties = [
+            { numero: 6, abreviation: 'PLQ/QLP', nom: 'Parti libéral du Québec/Quebec Liberal Party', couleur: '#E1001A' },
+            { numero: 8, abreviation: 'PQ', nom: 'Parti québécois', couleur: '#00A6F9' },
+            { numero: 22, abreviation: 'PCOQ', nom: 'Parti conservateur du Québec', couleur: '#1E346E' },
+            { numero: 27, abreviation: 'ÉCF-CAQ', nom: 'Équipe Christine Fréchette - Coalition avenir Québec', couleur: '#90dbfe' },
+            { numero: 40, abreviation: 'QS', nom: 'Québec solidaire', couleur: '#F25402' }
+        ];
+        const autres = { abreviation: 'Autres partis', nom: 'Autres partis', couleur: '#9B9B9B' };
+        const partyByNumber = new Map(parties.map(party => [party.numero, party]));
+        let baseFeatures = [];
+        let activeFeatures = [];
+        let activeResults = null;
+        let regions = [];
+
+        function getLeader(riding) {
+            return riding.candidats.reduce((leader, candidate) => {
+                return Number(candidate.nbVoteTotal) > Number(leader.nbVoteTotal) ? candidate : leader;
+            });
+        }
+
+        function initializeMaps(geojson, results, regionCsv, sourceUrl) {
+            const regionRows = d3.csvParseRows(regionCsv)
+                .filter(row => row.length >= 4)
+                .map(([name, numero, abbreviation, region]) => ({
+                    name,
+                    numero: String(numero),
+                    abbreviation,
+                    region
+                }));
+            const regionByNumber = new Map(regionRows.map(row => [row.numero, row.region]));
+
+            geojson.features.forEach(feature => {
+                const polygons = feature.geometry.type === 'Polygon'
+                    ? [feature.geometry.coordinates]
+                    : feature.geometry.coordinates;
+                polygons.forEach(rings => rings.forEach(ring => ring.reverse()));
+            });
+
+            baseFeatures = geojson.features.map(feature => ({
+                ...feature,
+                region: regionByNumber.get(String(feature.properties.CO_CEP))
+            }));
+            regions = [...new Set(regionRows.map(row => row.region))].sort((a, b) => a.localeCompare(b, 'fr'));
+            const selector = d3.select('#region-select');
+            selector.selectAll('option')
+                .data(['Tout le Québec', ...regions])
+                .join('option')
+                .attr('value', region => region)
+                .text(region => region);
+            selector.on('change', event => renderRegion(event.currentTarget.value));
+
+            document.getElementById('results-file').addEventListener('change', async event => {
+                const file = event.currentTarget.files[0];
+                if (!file) return;
+                try {
+                    applyResults(JSON.parse(await file.text()), file.name);
+                } catch (error) {
+                    showResultError(error);
+                }
+            });
+
+            const urlInput = document.getElementById('results-url');
+            urlInput.value = sourceUrl.trim();
+            document.getElementById('url-form').addEventListener('submit', async event => {
+                event.preventDefault();
+                try {
+                    const response = await fetch(urlInput.value.trim());
+                    if (!response.ok) throw new Error(`Réponse du serveur : ${response.status}`);
+                    applyResults(await response.json(), urlInput.value.trim());
+                } catch (error) {
+                    showResultError(error);
+                }
+            });
+
+            applyResults(results, 'resultats.json');
+
+            const exportButton = document.getElementById('export-kml');
+            exportButton.addEventListener('click', async () => {
+                const exportStatus = document.getElementById('export-status');
+                exportButton.disabled = true;
+                exportStatus.textContent = 'Création des fichiers KML…';
+                try {
+                    await exportAllKml(activeFeatures, regions, activeResults);
+                    exportStatus.textContent = `${regions.length + 1} fichiers KML téléchargés.`;
+                } catch (error) {
+                    exportStatus.textContent = `Échec de l’export : ${error.message}`;
+                } finally {
+                    exportButton.disabled = false;
+                }
+            });
+        }
+
+        function applyResults(results, source) {
+            if (!Array.isArray(results?.circonscriptions)) {
+                throw new Error('Le JSON ne contient pas de liste de circonscriptions valide.');
+            }
+
+            const resultByNumber = new Map(results.circonscriptions.map(riding => [String(riding.numeroCirconscription), riding]));
+            activeResults = results;
+            activeFeatures = baseFeatures.map(feature => {
+                const riding = resultByNumber.get(String(feature.properties.CO_CEP));
+                return { ...feature, riding, leader: riding?.candidats?.length ? getLeader(riding) : null };
+            });
+
+            renderRegion(document.getElementById('region-select').value);
+            const latestUpdate = results.circonscriptions
+                .map(riding => {
+                    const rawDate = riding.iso8601DateMAJ;
+                    const timestamp = rawDate ? Date.parse(String(rawDate).replace(',', '.')) : NaN;
+                    return Number.isNaN(timestamp) ? null : { timestamp, date: new Date(timestamp) };
+                })
+                .filter(Boolean)
+                .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+            const dateElement = document.getElementById('last-updated-value');
+            if (latestUpdate) {
+                dateElement.dateTime = latestUpdate.date.toISOString();
+                dateElement.textContent = new Intl.DateTimeFormat('fr-CA', {
+                    dateStyle: 'long',
+                    timeStyle: 'medium',
+                    timeZone: 'America/Toronto'
+                }).format(latestUpdate.date);
+            } else {
+                dateElement.removeAttribute('datetime');
+                dateElement.textContent = 'Date de mise à jour indisponible';
+            }
+
+            document.getElementById('error').textContent = '';
+            document.getElementById('export-status').textContent = '';
+            document.getElementById('status').textContent += ` · ${source}`;
+        }
+
+        function showResultError(error) {
+            document.getElementById('error').textContent = `Impossible de charger les résultats : ${error.message}`;
+        }
+
+        function xmlEscape(value) {
+            return String(value ?? '').replace(/[<>&"']/g, character => ({
+                '<': '&lt;',
+                '>': '&gt;',
+                '&': '&amp;',
+                '"': '&quot;',
+                "'": '&apos;'
+            })[character]);
+        }
+
+        function fileSlug(value) {
+            return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        }
+
+        function kmlColor(hexColor) {
+            const hex = hexColor.replace('#', '');
+            return `ff${hex.slice(4, 6)}${hex.slice(2, 4)}${hex.slice(0, 2)}`;
+        }
+
+        function kmlRing(coordinates) {
+            const first = coordinates[0];
+            const last = coordinates[coordinates.length - 1];
+            const ring = first[0] === last[0] && first[1] === last[1]
+                ? coordinates
+                : [...coordinates, first];
+            return ring.map(([longitude, latitude]) => `${longitude},${latitude},0`).join(' ');
+        }
+
+        function kmlPolygon(rings) {
+            const [outer, ...holes] = rings;
+            return `<Polygon><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode><outerBoundaryIs><LinearRing><coordinates>${kmlRing(outer)}</coordinates></LinearRing></outerBoundaryIs>${holes.map(ring => `<innerBoundaryIs><LinearRing><coordinates>${kmlRing(ring)}</coordinates></LinearRing></innerBoundaryIs>`).join('')}</Polygon>`;
+        }
+
+        function kmlGeometry(geometry) {
+            if (geometry.type === 'Polygon') return kmlPolygon(geometry.coordinates);
+            if (geometry.type === 'MultiPolygon') {
+                return `<MultiGeometry>${geometry.coordinates.map(kmlPolygon).join('')}</MultiGeometry>`;
+            }
+            throw new Error(`Type de géométrie non pris en charge : ${geometry.type}`);
+        }
+
+        function getParty(feature, results) {
+            const leader = feature.leader;
+            const number = Number(leader?.numeroPartiPolitique);
+            const knownParty = partyByNumber.get(number);
+            const sourceParty = results.statistiques?.partisPolitiques?.find(party => Number(party.numeroPartiPolitique) === number);
+            return {
+                number,
+                name: knownParty?.nom || sourceParty?.nomPartiPolitique || leader?.abreviationPartiPolitique || autres.nom,
+                abbreviation: knownParty?.abreviation || sourceParty?.abreviationPartiPolitique || leader?.abreviationPartiPolitique || autres.abreviation,
+                color: knownParty?.couleur || autres.couleur
+            };
+        }
+
+        async function exportAllKml(features, regions, results) {
+            if (!window.JSZip) throw new Error('La bibliothèque ZIP ne s’est pas chargée.');
+
+            const zip = new JSZip();
+            regions.forEach(region => {
+                const regionFeatures = features.filter(feature => feature.region === region);
+                zip.file(`${fileSlug(region)}.kml`, createKml(region, regionFeatures, results));
+            });
+            zip.file('tout-le-quebec.kml', createKml('Tout le Québec', features, results));
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'cartes-electorales-par-region.zip';
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function createKml(folderName, features, results) {
+            const partiesInRegion = new Map(features.map(feature => {
+                    const party = getParty(feature, results);
+                    const key = Number.isNaN(party.number) ? 'unknown' : String(party.number);
+                    return [key, { ...party, styleId: `${fileSlug(folderName)}-${fileSlug(key)}` }];
+                }));
+            const styles = [...partiesInRegion.values()].map(party => `
+                    <Style id="${party.styleId}">
+                        <LineStyle><color>ff333333</color><width>0.7</width></LineStyle>
+                        <PolyStyle><color>${kmlColor(party.color)}</color><fill>1</fill><outline>1</outline></PolyStyle>
+                    </Style>`).join('');
+            const placemarks = features.map(feature => {
+                const party = getParty(feature, results);
+                const key = Number.isNaN(party.number) ? 'unknown' : String(party.number);
+                const name = feature.riding?.nomCirconscription || feature.properties.NM_CEP;
+                return `
+                    <Placemark>
+                        <name>${xmlEscape(name)}</name>
+                        <styleUrl>#${partiesInRegion.get(key).styleId}</styleUrl>
+                        <ExtendedData>
+                            <Data name="region"><value>${xmlEscape(feature.region || folderName)}</value></Data>
+                            <Data name="party"><value>${xmlEscape(party.name)}</value></Data>
+                            <Data name="party_abbreviation"><value>${xmlEscape(party.abbreviation)}</value></Data>
+                            <Data name="party_number"><value>${Number.isNaN(party.number) ? '' : party.number}</value></Data>
+                            <Data name="total_votes"><value>${feature.leader?.nbVoteTotal ?? ''}</value></Data>
+                        </ExtendedData>
+                        ${kmlGeometry(feature.geometry)}
+                    </Placemark>`;
+            }).join('');
+            return `<?xml version="1.0" encoding="UTF-8"?>
+                <kml xmlns="http://www.opengis.net/kml/2.2">
+                    <Document>
+                        <name>${xmlEscape(folderName)}</name>
+                        <Folder>
+                            <name>${xmlEscape(folderName)}</name>
+                            ${styles}
+                            ${placemarks}
+                        </Folder>
+                    </Document>
+                </kml>`;
+        }
+
+        function renderRegion(region) {
+            const regionFeatures = region === 'Tout le Québec'
+                ? activeFeatures
+                : activeFeatures.filter(feature => feature.region === region);
+            const projection = d3.geoConicConformal()
+                .parallels([45, 60])
+                .rotate([68, 0])
+                .fitExtent([[18, 18], [1032, 742]], { type: 'FeatureCollection', features: regionFeatures });
+            const path = d3.geoPath(projection);
+            const counts = new Map();
+            const svg = d3.select('#map');
+            const ridingPaths = svg.selectAll('path.riding')
+                .data(regionFeatures, feature => feature.properties.CO_CEP)
+                .join('path')
+                .attr('class', 'riding')
+                .attr('d', path)
+                .attr('fill', feature => {
+                    const party = partyByNumber.get(Number(feature.leader?.numeroPartiPolitique));
+                    const key = party ? party.numero : 'other';
+                    counts.set(key, (counts.get(key) || 0) + 1);
+                    return (party || autres).couleur;
+                });
+
+            ridingPaths.selectAll('title')
+                .data(feature => [feature])
+                .join('title')
+                .text(feature => {
+                    const leader = feature.leader;
+                    if (!leader) return `${feature.properties.NM_CEP}: résultat indisponible`;
+                    const knownParty = partyByNumber.get(Number(leader.numeroPartiPolitique));
+                    const partyName = knownParty?.nom || activeResults.statistiques?.partisPolitiques?.find(party => party.numeroPartiPolitique === leader.numeroPartiPolitique)?.nomPartiPolitique || leader.abreviationPartiPolitique || autres.nom;
+                    return `${feature.riding.nomCirconscription}\n${partyName} (${leader.abreviationPartiPolitique || 'N/A'})\n${Number(leader.nbVoteTotal).toLocaleString('fr-CA')} votes`;
+                });
+
+            const legendItems = [
+                ...parties.map(party => ({ ...party, count: counts.get(party.numero) || 0 })),
+                { ...autres, count: counts.get('other') || 0 }
+            ];
+            d3.select('#legend')
+                .selectAll('li')
+                .data(legendItems)
+                .join('li')
+                .html(party => `<span class="swatch" style="background:${party.couleur}" aria-hidden="true"></span><span>${party.abreviation}<span class="count">${party.count} circonscription(s)</span></span>`);
+
+            document.getElementById('region-heading').textContent = region;
+            document.getElementById('status').textContent = `${regionFeatures.length} circonscriptions`;
+        }
+
+        Promise.all([
+            d3.json('circonscriptions_electorales_sans_eau_2026.json'),
+            d3.json('resultats.json'),
+            d3.text('liste_circonscriptions2026_regions.csv'),
+            d3.text('url_data.txt')
+        ]).then(([geojson, results, regionCsv, sourceUrl]) => initializeMaps(geojson, results, regionCsv, sourceUrl))
+          .catch(error => {
+              document.getElementById('error').textContent = `Impossible de charger les données : ${error.message}`;
+              document.getElementById('status').textContent = 'Données indisponibles';
+          });
+    </script>
+</body>
+</html>
